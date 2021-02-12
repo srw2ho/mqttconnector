@@ -1,0 +1,10 @@
+.history/*
+__pycache__/**
+mqttconnector/__pycache__/
+build/**
+dist/**
+mqttconnector.egg-info/**
+.pytest_cache/*
+test/mqttconnector/__pycache__/*
+mqttconnector-env/**
+.vscode/settings.json
