@@ -54,6 +54,7 @@ class MQTTServiceDeviceClient(object):
     m_LoggingLevel: int
     m_Devicestate: dict
     m_generalConfig: dict
+    m_notifyInfoStateFunction: list
 
     def __init__(self, deviceKey: str = "", deviceConfig: dict = {}):
         self.m_deviceConfig = deviceConfig
@@ -120,8 +121,33 @@ class MQTTServiceDeviceClient(object):
         self.m_InterfaceVersion = ""
         self.m_MetadataVersion = ""
         self.m_infodeviceTopic = dict()
+        self.m_notifyInfoStateFunction = []
 
         self.initDeviceStates()
+
+    def AddnotityInfoStateFunction(self, infostatefunct) -> None:
+        self.m_Lock.acquire()
+        remaining = [
+            notifyInfoStateFunction for notifyInfoStateFunction in self.m_notifyInfoStateFunction if notifyInfoStateFunction == infostatefunct]
+
+        if len(remaining) == 0:
+            self.m_notifyInfoStateFunction.append(infostatefunct)
+        self.m_Lock.release()
+
+    def removeNotifyInfoStateFunction(self, infostatefunct) -> None:
+
+        self.m_Lock.acquire()
+        remaining = [
+            notifyInfoStateFunction for notifyInfoStateFunction in self.m_notifyInfoStateFunction if notifyInfoStateFunction != infostatefunct]
+
+        self.m_notifyInfoStateFunction = remaining
+        self.m_Lock.release()
+
+    def removeallNotifyInfoStateFunctions(self) -> None:
+
+        self.m_Lock.acquire()
+        self.m_notifyInfoStateFunction = []
+        self.m_Lock.release()
 
     def getRecvChanneldata(self) -> dict:
         self.m_RecLock.acquire()
@@ -203,7 +229,8 @@ class MQTTServiceDeviceClient(object):
 
         if self.m_isInitialized:
             self.m_mqttclient._client.disconnect()
-
+        
+        self.removeallNotifyInfoStateFunctions()
         self.m_isInitialized = False
         return True
 
@@ -574,6 +601,9 @@ class MQTTServiceDeviceClient(object):
                         generalconfig = additionalData["generalconfig"]
                         if hostname != "":
                             self.m_generalConfig[hostname] = generalconfig
+
+            for notifyInfoStateFunction in self.m_notifyInfoStateFunction:
+                notifyInfoStateFunction(hostname = hostname , infostate = self.m_Devicestate[hostname])
 
             self.m_Lock.release()
         except Exception as e:
