@@ -9,11 +9,9 @@ import threading
 from time import sleep
 import uuid
 
-from mqtt.client import MQTTClient
-from config.utils import Parser
-from ppmp.v3.util import machine_message_generator
-from ppmp.v3.device import Device
-from ppmp.v3.device_state import DeviceState
+from mqttconnector.client import MQTTClient
+from ppmpmessage.v3.util import machine_message_generator
+from ppmpmessage.v3.device_state import DeviceState
 import logging
 
 
