@@ -174,7 +174,6 @@ class MQTTServiceDeviceClient(object):
 
     def initDeviceStates(self):
         self.m_Lock.acquire()
-        
         for deviceServiceName in self.m_DeviceServiceNames:
             self.m_Devicestate[deviceServiceName] = DeviceState.UNKNOWN
             self.m_infodeviceTopic[deviceServiceName] = ""
@@ -186,7 +185,7 @@ class MQTTServiceDeviceClient(object):
     def on_connect(self, client, userdata, flags, rc):
 
         self.initDeviceStates()
-
+        self.unsubscribeallTopics()
         self.m_mqttclient.subscribe(
             "mh/DeviceServices/+", self.deviceServicesConsumer)
         self.m_logger.info(f"MQTTServiceDevice.on_connect")
@@ -208,6 +207,11 @@ class MQTTServiceDeviceClient(object):
 
         return True
 
+    def unsubscribeallTopics(self):
+        self.m_Lock.acquire()
+        self.m_mqttclient.unsubscribeallTopics()
+        self.m_Lock.release()
+        
     def doExit(self):
 
         self.m_mqttclient.unsubscribeallTopics()
@@ -656,6 +660,9 @@ class MQTTServiceDeviceClient(object):
             payload (_type_): _description_
         '''
         try:
+            if payload==b'':
+                return
+            
             self.m_Lock.acquire()
             action = json.loads(payload)
 
