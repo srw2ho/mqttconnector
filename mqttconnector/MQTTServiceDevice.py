@@ -111,7 +111,7 @@ class MQTTServiceDeviceClient(object):
         self.m_mqttConsumerThread = None
         self.m_mqttProducerThread = None
         self.m_isInitialized = False
-        self.m_writenotifytopic = ""
+        self.m_writenotifytopic = {}
         self.m_notifyEvents = {}
 
         self.m_notifyEventsCounter = 0
@@ -472,6 +472,7 @@ class MQTTServiceDeviceClient(object):
         try:
 
             metadata = self.getMetaDataByKey(key)
+            device = self.getdeviceByKey(key)
 
             if len(metadata.keys()) > 0:
                 # metadata = self.m_DeviceServiceMetaData[key]
@@ -492,7 +493,7 @@ class MQTTServiceDeviceClient(object):
                                 "posix_timestamp": timestamp,
                                 "value": value,
                                 "notifyid": _uuid,
-                                "notifytopic": self.m_writenotifytopic
+                                "notifytopic": self.m_writenotifytopic[device]
                             }
                             # get notify event for later setting in MQTT Consumer Procedure
                             notifyEvent = self.getNotifyEvent()
@@ -675,13 +676,13 @@ class MQTTServiceDeviceClient(object):
 
                             devicetopic = f'{devices["topic"]}'
                             metadatatopic = f'{devicetopic}/metadata'
-                            self.m_writenotifytopic = f"{devicetopic}/notify"
+                            self.m_writenotifytopic[key] = f"{devicetopic}/notify"
                             infotopic = f'{devicetopic}/info'
                             self.m_infodeviceTopic[key] =infotopic
                             self.m_mqttclient.subscribe(
                                 metadatatopic, self.deviceServicesMetaDataConsumer)
                             self.m_mqttclient.subscribe(
-                                self.m_writenotifytopic, self.devicewriteNotifyConsumer)
+                                self.m_writenotifytopic[key], self.devicewriteNotifyConsumer)
                             self.m_mqttclient.subscribe(
                                 infotopic, self.infoTopicConsumer)
                         if self.m_LoggingLevel > 0:
