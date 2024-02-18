@@ -3,23 +3,24 @@ import setuptools
 NAME = "mqttconnector"
 
 DEPENDENCIES_ARTIFACTORY = [
-    'paho-mqtt',
+    "paho-mqtt==1.6.1",
 ]
-DEPENDENCIES_GITHUB = [
-]
+
+DEPENDENCIES_GITHUB = []
 
 
 def generate_pip_links_from_https(url):
-    """ Generate pip compatible links from Socialcoding clone URLs
+    """Generate pip compatible links from Socialcoding clone URLs
 
     Arguments:
         url {str} -- Clone URL from Socialcoding
     """
-    package = url.split('/')[-1].split('.')[0]
+    package = url.split("/")[-1].split(".")[0]
     url = url.replace("https://", f"{package}@git+https://")
     url = url + f"#egg={package}"
 
     return url
+
 
 # create pip compatible links
 DEPENDENCIES_GITHUB = list(map(generate_pip_links_from_https, DEPENDENCIES_GITHUB))
@@ -43,12 +44,11 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     package_data={},
     setup_requires=[
-        'setuptools-git-versioning<2',
+        "setuptools-git-versioning<2",
     ],
     install_requires=DEPENDENCIES,
     classifiers=[
         "Programming Language :: Python :: 3",
-        "License :: Other/Proprietary License"
-        "Operating System :: OS Independent",
+        "License :: Other/Proprietary License" "Operating System :: OS Independent",
     ],
 )
