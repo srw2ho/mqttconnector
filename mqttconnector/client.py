@@ -139,7 +139,7 @@ class MQTTClient(object):
         except Exception as e:
             logger.error(f"MQTT-unsubscribeallTopics  error result code: {e}")
 
-    def unsubscribe(self, topic):
+    def unsubscribe(self, topic: str):
         """Subscribe to particular MQTT topic
 
         Arguments:
@@ -154,6 +154,13 @@ class MQTTClient(object):
             logger.error(
                 f"MQTT-unsubscribe topic {topic} error result code: {e}")
 
+    def apply_topiclist(self, topics:list=[]): 
+    
+        qos = 0
+        topictupels = [(key, qos) for key in topics]
+        if len(topictupels) > 0:
+            self._client.subscribe(topictupels)
+            
     def configureHandler(self, handler) -> dict:
         func_sig = inspect.signature(handler)
         doWriteTopic = False
@@ -163,8 +170,14 @@ class MQTTClient(object):
                 break
 
         return {"funchandler": handler, "doUseTopic": doWriteTopic}
+    def apply_topiclist(self, topics:list()=[]):
 
-    def subscribe(self, topic, handler):
+        qos = 0
+        topictupels = [(key, qos) for key in topics]
+        if len(topictupels) > 0:
+            self._client.subscribe(topictupels)
+
+    def subscribe(self, topic: str, handler, applySubsribe: bool = True):
         """Subscribe to particular MQTT topic
 
         Arguments:
@@ -177,7 +190,8 @@ class MQTTClient(object):
         try:
             configurehandler = self.configureHandler(handler)
             if not topic in self._subscriptions:
-                res = self._client.subscribe(topic)
+                if applySubsribe:
+                    res = self._client.subscribe(topic)
                 self._subscriptions[topic] = []
                 self._subscriptions[topic].append(configurehandler)
             else:
@@ -189,12 +203,12 @@ class MQTTClient(object):
                 ]
                 # srw2ho 21.04.2023: nur zulassen, wenn gleicher handler nicht bereits subsribed ist!!!!
                 if len(alreadysubscribedhandler) == 0:
-                    res = self._client.subscribe(topic)
+                    if applySubsribe:
+                        res = self._client.subscribe(topic)
                     self._subscriptions[topic].append(configurehandler)
 
         except Exception as e:
-            logger.error(
-                f"MQTT-subscribe topic {topic} error result code: {e}")
+            logger.error(f"MQTT-subscribe topic {topic} error result code: {e}")
 
     def publish(self, topic, message, qos=0, retain=False):
         """Publish message to topic
@@ -249,7 +263,7 @@ class MQTTClient(object):
         try:
             qos = 0
             topictupels = [(key, qos)
-                           for key, value in self._subscriptions.items()]
+                           for key in self._subscriptions.keys()]
             if len(topictupels) > 0:
                 self._client.subscribe(topictupels)
 
@@ -309,12 +323,19 @@ class MQTTClient(object):
         """
         # pass message content to respective handler for topic
         try:
-            # use wildcard_topics if necessary
-            topic = self.get_wildchard_topics(msg.topic)
+               # use wildcard_topics if necessary
+            doHandler = False
+            if msg.topic in self._subscriptions:
+                topic = msg.topic
+                doHandler = True
+            else:
+                topic = self.get_wildchard_topics(msg.topic)
+                if topic in self._subscriptions:
+                    doHandler = True
 
-            if topic in self._subscriptions:
+            if doHandler:
                 for handler in self._subscriptions[topic]:
-                    funchandler =  handler["funchandler"]
+                    funchandler = handler["funchandler"]
                     if handler["doUseTopic"]:
                         funchandler(msg.topic, msg.payload)
                     else:

@@ -102,11 +102,21 @@ class MQTTServiceDeviceClient(object):
         if "LoggingLevel" in self.m_deviceConfig:
             self.m_LoggingLevel = self.m_deviceConfig["LoggingLevel"]
 
+        keepalive = 60
+        
+        if "mqtt.keepalive" in self.m_deviceConfig:
+            keepalive = self.m_deviceConfig["mqtt.keepalive"]
         if self.m_MQTT_DEVICENAME == "":
             self.m_MQTT_DEVICENAME = None
 
-        self.m_mqttclient = MQTTClient(host=self.m_MQTT_HOST, port=self.m_MQTT_PORT,
-                                       user=self.m_MQTT_USERNAME, password=self.m_MQTT_PASSWORD, tls_cert=self.m_MQTT_TLS_CERT)
+        self.m_mqttclient = MQTTClient(
+            host=self.m_MQTT_HOST,
+            port=self.m_MQTT_PORT,
+            user=self.m_MQTT_USERNAME,
+            password=self.m_MQTT_PASSWORD,
+            tls_cert=self.m_MQTT_TLS_CERT,
+            keepalive=keepalive,
+        )
 
         self.m_mqttConsumerThread = None
         self.m_mqttProducerThread = None
@@ -171,6 +181,10 @@ class MQTTServiceDeviceClient(object):
         self.m_isInitialized = False
         
         self.initDeviceStates()
+        for notifyInfoStateFunction in self.m_notifyInfoStateFunction:
+            for deviceServiceName in self.m_DeviceServiceNames:
+                notifyInfoStateFunction(hostname = deviceServiceName , infostate = self.m_Devicestate[deviceServiceName].value)
+
 
     def initDeviceStates(self):
         self.m_Lock.acquire()
@@ -217,17 +231,18 @@ class MQTTServiceDeviceClient(object):
         self.m_mqttclient.unsubscribeallTopics()
         cancel = MQTTServiceDeviceSendPayload("", {'cancelThread': True})
         if self.m_mqttConsumerThread != None:
-
             self.m_ConsumerMQTTQUEUE.put(cancel)
 
             # self.m_ConsumerMQTTQUEUE.put(
             #     json.dumps({'cancelThread': True}))
             self.m_mqttConsumerThread.join()
+            self.m_mqttConsumerThread = None
 
         if self.m_mqttProducerThread != None:
             self.m_ProducerMQTTQUEUE.put(cancel)
             # self.mqttProduceMessage({"cancel": True})
             self.m_mqttProducerThread.join()
+            self.m_mqttProducerThread = None
 
         if self.m_isInitialized:
             self.m_mqttclient._client.disconnect()
@@ -273,6 +288,29 @@ class MQTTServiceDeviceClient(object):
                 f'MQTTServiceDevice.subscribeTopicByKey :{e}')
             return False
 
+    def unsubscribeTopicByKey(self, key: str) -> bool:
+        try:
+            dook = False
+            self.m_Lock.acquire()
+            if key in self.m_DeviceServiceMetaData:
+                metadata = self.m_DeviceServiceMetaData[key]
+                if "readtopic" in metadata:
+                    readtopic = metadata["readtopic"]
+                    if readtopic in self.m_mqttclient.getSubscriptions():
+                        self.m_mqttclient.unsubscribe(readtopic)
+                        if self.m_LoggingLevel > 0:
+                            self.m_logger.info(
+                                f'MQTTServiceDevice.unsubscribeTopicByKey: "key = {key}"'
+                            )
+                    dook = True
+
+            self.m_Lock.release()
+            return dook
+        except Exception as e:
+            self.m_Lock.release()
+            self.m_logger.error(f"MQTTServiceDevice.unsubscribeTopicByKey :{e}")
+            return False
+        
     def subscribeWriteTopicByKey(self, key: str) -> bool:
         try:
             dook = False
@@ -299,6 +337,97 @@ class MQTTServiceDeviceClient(object):
                 f'MQTTServiceDevice.subscribeWriteTopicByKey :{e}')
             return False
 
+    def unsubscribeWriteTopicByKey(self, key: str) -> bool:
+        try:
+            dook = False
+            self.m_Lock.acquire()
+            if key in self.m_DeviceServiceMetaData:
+                metadata = self.m_DeviceServiceMetaData[key]
+                if "writetopic" in metadata:
+                    writetopic = metadata["writetopic"]
+                    if writetopic != "":
+                        if writetopic in self.m_mqttclient.getSubscriptions():
+                            self.m_mqttclient.unsubscribe(writetopic)
+                            if self.m_LoggingLevel > 0:
+                                self.m_logger.info(
+                                    f'MQTTServiceDevice.unsubscribeWriteTopicByKey: "key = {key}"'
+                                )
+                        dook = True
+
+            self.m_Lock.release()
+            return dook
+
+        except Exception as e:
+            self.m_Lock.release()
+            self.m_logger.error(f"MQTTServiceDevice.unsubscribeWriteTopicByKey :{e}")
+            return False
+        
+    def subscribeTopicConsumerByKey(
+        self, key: str = "", mqttHandler=None, applySubsribe: bool = True
+    ) -> str:
+        try:
+            topic = ""
+            self.m_Lock.acquire()
+            if key in self.m_DeviceServiceMetaData:
+                metadata = self.m_DeviceServiceMetaData[key]
+                if "readtopic" in metadata:
+                    readtopic = metadata["readtopic"]
+                    self.m_mqttclient.subscribe(
+                        readtopic, mqttHandler, applySubsribe=applySubsribe
+                    )
+                    if self.m_LoggingLevel > 0:
+                        self.m_logger.info(
+                            f'MQTTServiceDevice.subscribeTopicConsumerByKey: "key = {key}" "handler={mqttHandler}"'
+                        )
+
+                    topic = readtopic
+
+            self.m_Lock.release()
+            return topic
+        except Exception as e:
+            self.m_Lock.release()
+            self.m_logger.error(f"MQTTServiceDevice.subscribeTopicConsumerByKey :{e}")
+            return ""
+
+    def subscribeWriteTopicConsumerByKey(self, key: str = "", mqttHandler=None,applySubsribe: bool = True) -> str:
+        try:
+            topic = ""
+            self.m_Lock.acquire()
+            if key in self.m_DeviceServiceMetaData:
+                metadata = self.m_DeviceServiceMetaData[key]
+                if "writetopic" in metadata:
+                    writetopic = metadata["writetopic"]
+                    if writetopic != "":
+                        self.m_mqttclient.subscribe(writetopic, mqttHandler,applySubsribe=applySubsribe)
+                        if self.m_LoggingLevel > 0:
+                            self.m_logger.info(
+                                f'MQTTServiceDevice.subscribeWriteTopicConsumerByKey: "key = {key}" "handler={mqttHandler}"'
+                            )
+                        topic = writetopic
+
+            self.m_Lock.release()
+            return topic
+
+        except Exception as e:
+            self.m_Lock.release()
+            self.m_logger.error(
+                f"MQTTServiceDevice.subscribeWriteTopicConsumerByKey :{e}"
+            )
+            return ""
+
+    def unsubscribTopicConsumer(self, topic: str = "") -> None:
+        try:
+            self.m_Lock.acquire()
+            self.m_mqttclient.unsubscribe(topic)
+            if topic in self.m_TopictoMetaKeys:
+                del self.m_TopictoMetaKeys[topic]
+            self.m_Lock.release()
+
+        except Exception as e:
+            self.m_Lock.release()
+            self.m_logger.error(f"MQTTServiceDevice.unsubscribTopicConsumer :{e}")
+
+        
     def getGeneralConfigByDevKey(self, devkey: str) -> dict:
         '''get GeneralConfig {
                             "InterfaceType":"PCComm"
